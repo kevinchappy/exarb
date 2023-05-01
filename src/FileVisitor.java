@@ -17,12 +17,15 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class FileVisitor {
-
-
+    private final static String path = "C:/Users/kevin/Desktop/test files";
+    private static int bugCounter = 0;
+    private static final Object bugCounterLock = new Object();
+    private static int noBugCounter = 0;
+    private static final Object noBugCounterLock = new Object();
 
     public static void main(String[] args) {
 
-        File root = new File("C:/Users/kevin/Desktop/test files");
+        File root = new File(path);
         List<File> javaFiles = getJavaFiles(root);
 
         if (!javaFiles.isEmpty()) {
@@ -37,18 +40,28 @@ public class FileVisitor {
                     e.printStackTrace();
                 }
             });
+            System.out.println("bug count: " + bugCounter);
+            System.out.println("nobug count: " + noBugCounter);
+            System.out.println("Total : " + (bugCounter + noBugCounter));
         } else {
             System.out.println("Files not found");
         }
     }
 
     private static List<File> getJavaFiles(File directory) {
-        File[] filesList = directory.listFiles();
+        File[] directoryList = directory.listFiles();
 
+        ArrayList<File> directories = new ArrayList<>();
         ArrayList<File> list = new ArrayList<>();
 
-        if (filesList != null) {
-            Collections.addAll(list, filesList);
+        if (directoryList != null) {
+            Collections.addAll(directories, directoryList);
+        }
+
+        for (File dir : directories){
+            File[] fileList = dir.listFiles();
+            if(fileList !=null)
+                Collections.addAll(list, fileList);
         }
         return list;
     }
@@ -64,6 +77,9 @@ public class FileVisitor {
                 return null;
             } else if (rand.nextBoolean()) {
                 method.setName("nobug");
+                synchronized (noBugCounterLock){
+                    noBugCounter++;
+                }
             } else {
                 Iterator<ForStmt> iter = list.iterator();
                 while (true) {
@@ -75,6 +91,9 @@ public class FileVisitor {
                         int newInitialValue = initialValue.asInt() + 1;
                         varDeclarator.setInitializer(new IntegerLiteralExpr(String.valueOf(newInitialValue)));
                         method.setName("bug");
+                        synchronized (bugCounterLock){
+                            bugCounter++;
+                        }
                         break;
                     }
                 }
