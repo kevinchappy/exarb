@@ -18,7 +18,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class FileVisitor {
-    private final static String path = "C:/Users/kevin/Desktop/java-med";
+    private final static String path = "C:/Users/kevin/Desktop/java-med/validation";
     private static int bugCounter = 0;
     private static final Object bugCounterLock = new Object();
     private static int noBugCounter = 0;
@@ -48,11 +48,41 @@ public class FileVisitor {
                     e.printStackTrace();
                 }
             });
+            List<File> filesToDelete = new ArrayList<>();
+            javaFiles.parallelStream().forEach(file -> {
+                try {
+                    CompilationUnit cu = new JavaParser().parse(file).getResult().orElse(null);
+                    if (cu != null) {
+                        if (cu.getTypes().stream().noneMatch(t -> t.getMethods().size() > 0)) {
+                            filesToDelete.add(file);
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+            });
+
+            int oldCount = javaFiles.size();
+            int deletedCounter = 0;
+            int failedToDeleteCounter = 0;
+            for(File file: filesToDelete){
+                if (file.delete()){
+                    deletedCounter++;
+                }else
+                    failedToDeleteCounter++;
+            }
+
+
             long stop = System.nanoTime();
 
-            System.out.println("bug count: " + bugCounter);
-            System.out.println("nobug count: " + noBugCounter);
-            System.out.println("Total : " + (bugCounter + noBugCounter));
+            System.out.println("Deleted " + deletedCounter + " files");
+            System.out.println("Failed to delete " + failedToDeleteCounter + " files");
+            System.out.println("Kept " + (oldCount - deletedCounter) + " Files");
+
+
+            System.out.println("bug method count: " + bugCounter);
+            System.out.println("nobug method count: " + noBugCounter);
+            System.out.println("Total methods : " + (bugCounter + noBugCounter));
             System.out.println("Time taken: " + (stop - start) / 1.0E9);
         } else {
             System.out.println("Files not found");
