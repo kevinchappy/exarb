@@ -18,7 +18,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class FileVisitor {
-    private final static String path = "C:/Users/kevin/Desktop/java-med/validation";
+    private final static String path = "C:/Users/kevin/Desktop/java-large-new";
     private static int bugCounter = 0;
     private static final Object bugCounterLock = new Object();
     private static int noBugCounter = 0;
@@ -43,6 +43,7 @@ public class FileVisitor {
                         cu.accept(new MethodVisitor(), null);
                         String modifiedCode = printer.print(cu);
                         Files.write(Paths.get(file.getAbsolutePath()), modifiedCode.getBytes());
+
                     }
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -65,10 +66,10 @@ public class FileVisitor {
             int oldCount = javaFiles.size();
             int deletedCounter = 0;
             int failedToDeleteCounter = 0;
-            for(File file: filesToDelete){
-                if (file.delete()){
+            for (File file : filesToDelete) {
+                if (file.delete()) {
                     deletedCounter++;
-                }else
+                } else
                     failedToDeleteCounter++;
             }
 
@@ -89,31 +90,11 @@ public class FileVisitor {
         }
     }
 
-    private static List<File> getJavaFiles(File directory) {
-        File[] directoryList = directory.listFiles();
-
-        ArrayList<File> directories = new ArrayList<>();
-        ArrayList<File> list = new ArrayList<>();
-
-        if (directoryList != null) {
-            Collections.addAll(directories, directoryList);
-        }
-
-        for (File dir : directories) {
-            File[] fileList = dir.listFiles();
-            if (fileList != null)
-                Collections.addAll(list, fileList);
-        }
-        return list;
-    }
-
-
     private static class MethodVisitor extends ModifierVisitor<Void> {
         @Override
         public MethodDeclaration visit(MethodDeclaration method, Void arg) {
             Random rand = ThreadLocalRandom.current();
             List<ForStmt> list = getEligibleForStatements(method);
-
             if (list.isEmpty()) {
                 return null;
             } else if (rand.nextBoolean()) {
@@ -122,31 +103,25 @@ public class FileVisitor {
                     noBugCounter++;
                 }
             } else {
-                Iterator<ForStmt> iter = list.iterator();
-                while (true) {
-                    ForStmt forStmt = iter.next();
-                    if (!iter.hasNext() || rand.nextBoolean()) {
-                        VariableDeclarationExpr varDeclExpr = null;
-                        for (Node node : forStmt.getInitialization()) {
-                            if (node instanceof VariableDeclarationExpr) {
-                                varDeclExpr = (VariableDeclarationExpr) node;
-                            }
-                        }
-                        if (varDeclExpr == null) //remove method if it does not have a variable declaration, for example i = 0
-                            return null;
-                        VariableDeclarator varDeclarator = varDeclExpr.getVariables().get(0);
-                        if (!(varDeclarator.getInitializer().isPresent() && varDeclarator.getInitializer().get().isIntegerLiteralExpr()))  //remove method if it does not use integer to initialize value
-                            return null;
-
-                        IntegerLiteralExpr initialValue = (IntegerLiteralExpr) varDeclarator.getInitializer().get();
-                        int newInitialValue = initialValue.asInt() + 1;
-                        varDeclarator.setInitializer(new IntegerLiteralExpr(String.valueOf(newInitialValue)));
-                        method.setName("bug");
-                        synchronized (bugCounterLock) {
-                            bugCounter++;
-                        }
-                        break;
+                ForStmt forStmt = list.get(rand.nextInt(list.size()));
+                VariableDeclarationExpr varDeclExpr = null;
+                for (Node node : forStmt.getInitialization()) {
+                    if (node instanceof VariableDeclarationExpr) {
+                        varDeclExpr = (VariableDeclarationExpr) node;
                     }
+                }
+                if (varDeclExpr == null) //remove method if it does not have a variable declaration, for example i = 0
+                    return null;
+                VariableDeclarator varDeclarator = varDeclExpr.getVariables().get(0);
+                if (!(varDeclarator.getInitializer().isPresent() && varDeclarator.getInitializer().get().isIntegerLiteralExpr()))  //remove method if it does not use integer to initialize value
+                    return null;
+
+                IntegerLiteralExpr initialValue = (IntegerLiteralExpr) varDeclarator.getInitializer().get();
+                int newInitialValue = initialValue.asInt() + 1;
+                varDeclarator.setInitializer(new IntegerLiteralExpr(String.valueOf(newInitialValue)));
+                method.setName("bug");
+                synchronized (bugCounterLock) {
+                    bugCounter++;
                 }
             }
             return method;
@@ -160,7 +135,6 @@ public class FileVisitor {
                     if (statement instanceof ForStmt) {
                         ForStmt forStmt = (ForStmt) statement;
                         if (forStmt.getCompare().isPresent()) {
-
                             Expression expr = forStmt.getCompare().get();
                             if (expr instanceof BinaryExpr) {
                                 BinaryExpr bExpr = (BinaryExpr) expr;
