@@ -1,10 +1,12 @@
 import com.github.javaparser.JavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.NodeList;
 import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.expr.*;
 import com.github.javaparser.ast.stmt.ForStmt;
+import com.github.javaparser.ast.stmt.IfStmt;
 import com.github.javaparser.ast.stmt.Statement;
 import com.github.javaparser.ast.visitor.ModifierVisitor;
 import com.github.javaparser.printer.DefaultPrettyPrinter;
@@ -18,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class FileVisitor {
-    private final static String path = "C:/Users/kevin/Desktop/java-large-new";
+    private final static String path = "C:/Users/kevin/Desktop/test/java-small";
     private static int bugCounter = 0;
     private static final Object bugCounterLock = new Object();
     private static int noBugCounter = 0;
@@ -40,7 +42,7 @@ public class FileVisitor {
                     Printer printer = new DefaultPrettyPrinter();
                     CompilationUnit cu = new JavaParser().parse(file).getResult().orElse(null);
                     if (cu != null) {
-                        cu.accept(new MethodVisitor(), null);
+                        cu.accept(new IfElseVisitor(), null);
                         String modifiedCode = printer.print(cu);
                         Files.write(Paths.get(file.getAbsolutePath()), modifiedCode.getBytes());
 
@@ -65,13 +67,13 @@ public class FileVisitor {
 
             int oldCount = javaFiles.size();
             int deletedCounter = 0;
-            int failedToDeleteCounter = 0;
+            int failedToDeleteCounter = 0;/*
             for (File file : filesToDelete) {
                 if (file.delete()) {
                     deletedCounter++;
                 } else
                     failedToDeleteCounter++;
-            }
+            }*/
 
 
             long stop = System.nanoTime();
@@ -127,13 +129,12 @@ public class FileVisitor {
             return method;
         }
 
-
         private List<ForStmt> getEligibleForStatements(MethodDeclaration method) {
             List<ForStmt> list = new ArrayList<>();
             if (method.getBody().isPresent()) {
                 for (Statement statement : method.getBody().get().getStatements()) {
-                    if (statement instanceof ForStmt) {
-                        ForStmt forStmt = (ForStmt) statement;
+                    if (statement.isForStmt()) {
+                        ForStmt forStmt = statement.asForStmt();
                         if (forStmt.getCompare().isPresent()) {
                             Expression expr = forStmt.getCompare().get();
                             if (expr instanceof BinaryExpr) {
@@ -150,6 +151,84 @@ public class FileVisitor {
         }
     }
 
+    private static class IfElseVisitor extends ModifierVisitor<Void> {
+        @Override
+        public MethodDeclaration visit(MethodDeclaration method, Void arg) {
+            Random rand = ThreadLocalRandom.current();
+
+
+            if (!hasEligibleIfStmts(method)) {
+                return null;
+            } else if (rand.nextBoolean()) {
+                method.setName("nobug");
+                synchronized ((noBugCounterLock)) {
+                    noBugCounter++;
+                }
+            } else {
+                getEligibleIfStmts(method);
+                method.setName("bug");
+                synchronized (bugCounterLock){
+                    bugCounter++;
+                }
+            }
+            return method;
+        }
+
+        private boolean hasEligibleIfStmts(MethodDeclaration method) {
+            if (method.getBody().isPresent()) {
+                NodeList<Statement> body = method.clone().getBody().get().getStatements();
+                for (Statement stmt : body) {
+                    if (stmt.isIfStmt() && stmt.asIfStmt().hasCascadingIfStmt()) {
+                        return true;
+                    }
+
+                }
+            }
+            return false;
+        }
+
+        private void getEligibleIfStmts(MethodDeclaration method) {
+            Random rand = ThreadLocalRandom.current();
+
+            if (method.getBody().isPresent()) {
+                NodeList<Statement> body = method.clone().getBody().get().getStatements();
+                int index = -1;
+                for (Statement stmt : body) {
+                    if (stmt.isIfStmt() && stmt.asIfStmt().hasCascadingIfStmt()) {
+                        index = body.indexOf(stmt);
+                        break;
+                    }
+                }
+
+
+                IfStmt orignalIfStmt = body.get(index).asIfStmt();
+                List<IfStmt> list = getAllChildren(orignalIfStmt, new ArrayList<>());
+                IfStmt newRoot = list.get(rand.nextInt(list.size()));
+
+                Node parent = newRoot.getParentNode().get();
+                IfStmt statement = null;
+                if (parent instanceof IfStmt) {
+                    statement = (IfStmt) parent;
+                }
+
+                if (statement != null) {
+                    statement.removeElseStmt();
+                    body.add(index + 1, newRoot);
+                    method.setBody(method.getBody().get().setStatements(body));
+
+                }
+            }
+        }
+
+        List<IfStmt> getAllChildren(IfStmt parent, List<IfStmt> list) {
+            if (parent.getElseStmt().isPresent() && parent.getElseStmt().get().isIfStmt()) {
+                IfStmt child = parent.getElseStmt().get().asIfStmt();
+                list.add(child);
+                return getAllChildren(child, list);
+            }
+            return list;
+        }
+    }
     private static List<File> extractJavaFiles(String directoryPath) {
         List<File> javaFiles = new ArrayList<>();
         File directory = new File(directoryPath);
