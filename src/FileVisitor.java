@@ -20,7 +20,7 @@ import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class FileVisitor {
-    private final static String path = "C:/Users/kevin/Desktop/test/java-small";
+    private final static String path = "";
     private static int bugCounter = 0;
     private static final Object bugCounterLock = new Object();
     private static int noBugCounter = 0;
@@ -67,13 +67,13 @@ public class FileVisitor {
 
             int oldCount = javaFiles.size();
             int deletedCounter = 0;
-            int failedToDeleteCounter = 0;/*
+            int failedToDeleteCounter = 0;
             for (File file : filesToDelete) {
                 if (file.delete()) {
                     deletedCounter++;
                 } else
                     failedToDeleteCounter++;
-            }*/
+            }
 
 
             long stop = System.nanoTime();
@@ -156,7 +156,6 @@ public class FileVisitor {
         public MethodDeclaration visit(MethodDeclaration method, Void arg) {
             Random rand = ThreadLocalRandom.current();
 
-
             if (!hasEligibleIfStmts(method)) {
                 return null;
             } else if (rand.nextBoolean()) {
@@ -167,7 +166,7 @@ public class FileVisitor {
             } else {
                 getEligibleIfStmts(method);
                 method.setName("bug");
-                synchronized (bugCounterLock){
+                synchronized (bugCounterLock) {
                     bugCounter++;
                 }
             }
@@ -191,32 +190,29 @@ public class FileVisitor {
             Random rand = ThreadLocalRandom.current();
 
             if (method.getBody().isPresent()) {
-                NodeList<Statement> body = method.clone().getBody().get().getStatements();
-                int index = -1;
+                NodeList<Statement> body = method.getBody().get().getStatements();
+                List<Integer> indexes = new ArrayList<>();
                 for (Statement stmt : body) {
                     if (stmt.isIfStmt() && stmt.asIfStmt().hasCascadingIfStmt()) {
-                        index = body.indexOf(stmt);
-                        break;
+                        indexes.add( body.indexOf(stmt));
                     }
                 }
 
+                int index = indexes.get(rand.nextInt(indexes.size()));
 
                 IfStmt orignalIfStmt = body.get(index).asIfStmt();
                 List<IfStmt> list = getAllChildren(orignalIfStmt, new ArrayList<>());
                 IfStmt newRoot = list.get(rand.nextInt(list.size()));
 
                 Node parent = newRoot.getParentNode().get();
-                IfStmt statement = null;
-                if (parent instanceof IfStmt) {
-                    statement = (IfStmt) parent;
-                }
 
-                if (statement != null) {
-                    statement.removeElseStmt();
-                    body.add(index + 1, newRoot);
-                    method.setBody(method.getBody().get().setStatements(body));
+                IfStmt statement =  (IfStmt) parent;
 
-                }
+
+
+                statement.removeElseStmt();
+                body.add(index + 1, newRoot);
+                method.setBody(method.getBody().get().setStatements(body));
             }
         }
 
@@ -229,6 +225,7 @@ public class FileVisitor {
             return list;
         }
     }
+
     private static List<File> extractJavaFiles(String directoryPath) {
         List<File> javaFiles = new ArrayList<>();
         File directory = new File(directoryPath);
